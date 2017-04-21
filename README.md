@@ -31,7 +31,8 @@ xatoms --format="%s\t\t%d\n"
 
 ### Full Working Example
 ```bash
-$ ./xatoms --name NET_WM -p --range=300-550316	_NET_WM_CM_S0
+$ ./xatoms --name NET_WM -p --range=300-550
+316	_NET_WM_CM_S0
 317	_NET_WM_DESKTOP
 318	_NET_WM_ICON
 319	_NET_WM_ICON_NAME
