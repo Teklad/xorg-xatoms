@@ -1,4 +1,3 @@
-#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -41,7 +40,7 @@ static void print_atoms(const char *match, MatchType match_type, char *format,
             if (batch_offset + i > actual_range) break;
             reply = xcb_get_atom_name_reply(conn, cookies[i], &e);
             if (reply) {
-                if (reply->name_len > BUF_SIZE-1) {
+                if (reply->name_len > BUF_SIZE - 1) {
                     fputs("Atom name buffer overflow\n", stderr);
                     free(reply);
                     exit(1);
@@ -170,7 +169,7 @@ int main(int argc, char* argv[])
     // All of our options are here
     char *match = NULL;
     char format[256] = "%d\t%s\n";
-    int range[2] = {1, INT_MAX};
+    unsigned int range[2] = {1, 65535};
     MatchType match_type = MATCH_NONE;
 
     while ((opt = getopt_long(argc, argv, "f:hn:pr:v", 
