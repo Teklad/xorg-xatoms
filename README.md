@@ -1,7 +1,8 @@
 # XAtoms
 
-XAtoms is a tool for printing and/or searching for Xorg server atoms.  It can
-match based on partial or full names of Atoms.
+XAtoms is a drop-in replacement for xorg-xlsatoms for printing and/or 
+searching for Xorg server atoms.  It can match based on partial or full 
+names of Atoms.
 
 ### Build Requirements
 * libxcb
