@@ -14,7 +14,7 @@ CFLAGS = -O2 -s
 all: $(SOURCES) $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS)
-	$(CC) -o $@ $^ $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 	@echo "Done."
 .c.o:
 	$(CC) $(CFLAGS) -c $< -o $@

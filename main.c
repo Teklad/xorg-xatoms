@@ -15,14 +15,16 @@
 typedef enum  {MATCH_NONE = 0, MATCH_PARTIAL, MATCH_FULL} MatchType;
 
 static void print_atoms(const char *match, MatchType match_type, char *format,
-        int range[2])
+        unsigned int range[2])
 {
+    // Connect to the X server.
     xcb_connection_t *conn = xcb_connect(NULL, NULL);
     if (xcb_connection_has_error(conn)) {
         fputs("Display connection error.\n", stderr);
         exit(1);
     }
 
+    // Commonly used variables
     xcb_generic_error_t *e;
     xcb_get_atom_name_cookie_t cookies[BATCH_SIZE];
     xcb_get_atom_name_reply_t *reply = NULL;
@@ -30,12 +32,17 @@ static void print_atoms(const char *match, MatchType match_type, char *format,
     int batch_offset = 0;
     int actual_range = range[1] - range[0];
 
+    // Start batch operations!
     while (batch_offset <= actual_range) {
+
+        // Fill up our cookie buffer
         for (int i = 0; i < BATCH_SIZE; ++i) {
             if (batch_offset + i > actual_range) break;
             cookies[i] = xcb_get_atom_name(conn, 
                     range[0] + i + batch_offset);
         }
+
+        // Read all the replies
         for (int i = 0; i < BATCH_SIZE; ++i) {
             if (batch_offset + i > actual_range) break;
             reply = xcb_get_atom_name_reply(conn, cookies[i], &e);
@@ -45,8 +52,11 @@ static void print_atoms(const char *match, MatchType match_type, char *format,
                     free(reply);
                     exit(1);
                 }
+                // Fill the name buffer
                 memcpy(name, xcb_get_atom_name_name(reply), reply->name_len);
                 name[reply->name_len] = '\0';
+
+                // Check for matches
                 if (match_type == MATCH_PARTIAL && 
                 strstr(name, match) == NULL) {
                     free(reply);
@@ -57,7 +67,7 @@ static void print_atoms(const char *match, MatchType match_type, char *format,
                     continue;
                 }
 
-                // Safe print
+                // Print our data in a flexible manner
                 char *p = format;
                 while(*p != 0) {
                     switch(*p) {
@@ -80,6 +90,9 @@ static void print_atoms(const char *match, MatchType match_type, char *format,
                 }
                 free(reply);
             }
+
+            // If we encountered an error, go ahead and quit
+            // we're probably at the end of available atoms.
             if (e) {
                 break;
             }
@@ -141,7 +154,7 @@ static void set_format(char *format, char *opt)
     *p = '\0';
 }
 
-static void set_range(int range[2], char* rng)
+static void set_range(unsigned int range[2], char* rng)
 {
     char* sep = strstr(rng, "-");
     if (sep) {
@@ -163,10 +176,10 @@ int main(int argc, char* argv[])
         {"range", required_argument, 0, 'r'},
         {"version", no_argument, 0, 'v'}
     };
-    int opt;
-    int i, option_index = 0;
 
-    // All of our options are here
+    // Variables related to options.
+    int opt;
+    int option_index = 0;
     char *match = NULL;
     char format[256] = "%d\t%s\n";
     unsigned int range[2] = {1, 65535};
