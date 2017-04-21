@@ -15,7 +15,7 @@
 
 typedef enum  {MATCH_NONE = 0, MATCH_PARTIAL, MATCH_FULL} MatchType;
 
-static void print_atoms(const char* match, MatchType match_type, char* format,
+static void print_atoms(const char *match, MatchType match_type, char *format,
         int range[2])
 {
     xcb_connection_t *conn = xcb_connect(NULL, NULL);
@@ -29,22 +29,23 @@ static void print_atoms(const char* match, MatchType match_type, char* format,
     xcb_get_atom_name_reply_t *reply = NULL;
     char name[BUF_SIZE] = {0};
     int batch_offset = 0;
+    int actual_range = range[1] - range[0];
 
-    while (batch_offset < range[1] - range[0]) {
+    while (batch_offset <= actual_range) {
         for (int i = 0; i < BATCH_SIZE; ++i) {
-            if (batch_offset+i > range[1] - range[0]) {
-                break;
-            }
+            if (batch_offset + i > actual_range) break;
             cookies[i] = xcb_get_atom_name(conn, 
                     range[0] + i + batch_offset);
         }
         for (int i = 0; i < BATCH_SIZE; ++i) {
-            if (batch_offset+i > range[1] - range[0]) {
-                finished = 1;
-                break;
-            }
+            if (batch_offset + i > actual_range) break;
             reply = xcb_get_atom_name_reply(conn, cookies[i], &e);
             if (reply) {
+                if (reply->name_len > BUF_SIZE-1) {
+                    fputs("Atom name buffer overflow\n", stderr);
+                    free(reply);
+                    exit(1);
+                }
                 memcpy(name, xcb_get_atom_name_name(reply), reply->name_len);
                 name[reply->name_len] = '\0';
                 if (match_type == MATCH_PARTIAL && 
@@ -126,10 +127,10 @@ static void set_format(char *format, char *opt)
         switch(*c) {
             case '\\':
                 c++;
-                if (*c == 'n')     { *p = '\n'; }
-                else if(*c == 'r') { *p = '\r'; }
-                else if(*c == 't') { *p = '\t'; }
-                else                 { *p = *(--c);}
+                if (*c == 'n')      { *p = '\n'; }
+                else if(*c == 'r')  { *p = '\r'; }
+                else if(*c == 't')  { *p = '\t'; }
+                else                { *p = *(--c);}
                 break;
             default:
                 *p = *c;
@@ -148,6 +149,9 @@ static void set_range(int range[2], char* rng)
         range[1] = atoi(sep+1);
     }
     range[0] = atoi(rng);
+    if (range[0] > range[1]) {
+        range[1] = range[0];
+    }
 }
 
 int main(int argc, char* argv[])
