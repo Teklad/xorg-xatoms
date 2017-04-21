@@ -1,4 +1,5 @@
 === XAtoms ===
+
 XAtoms is a tool for printing and/or searching for Xorg server atoms.  It can
 match based on partial or full names of Atoms.
 
