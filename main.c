@@ -9,45 +9,43 @@
 #define VERSION_MINOR 1
 #define VERSION_PATCH 0
 
-#define MAX_ATOMS 10000
 #define BUF_SIZE  1024
+#define MAX_ATOM  1000
 
-// Stuff for matching modes
-enum  MatchType {MATCH_NONE = 0, MATCH_PARTIAL, MATCH_FULL};
-char  match[BUF_SIZE] = {'\0'};
-int   match_type = MATCH_NONE;
+typedef enum  {MATCH_NONE = 0, MATCH_PARTIAL, MATCH_FULL} MatchType;
 
-// Format and range specifiers
-char  format[BUF_SIZE] = "%d\t%s\n";
-int   range[2] = {0, MAX_ATOMS};
-
-static void print_atoms()
+static void print_atoms(const char* match, MatchType match_type, char* format,
+        int range[2])
 {
     xcb_connection_t *conn = xcb_connect(NULL, NULL);
-    xcb_get_atom_name_cookie_t cookies[MAX_ATOMS];
+    if (xcb_connection_has_error(conn)) {
+        fputs("Display connection error.\n", stderr);
+        exit(1);
+    }
+    xcb_get_atom_name_cookie_t cookies[MAX_ATOM];
+    xcb_get_atom_name_reply_t *reply = NULL;
+    char name[BUF_SIZE] = {0};
 
-    // Generate all of our cookies at once.
     for (int i = range[0]; i < range[1]; ++i) {
         cookies[i] = xcb_get_atom_name(conn, i);
     }
 
-    // Ready a few of our variables.
-    char name[BUF_SIZE];
-    xcb_get_atom_name_reply_t *reply = NULL;
-
-    // Loop through the replies and print data based on conditions
     for (int i = range[0]; i < range[1]; ++i) {
         reply = xcb_get_atom_name_reply(conn, cookies[i], NULL);
-        if (!reply)
+        if (!reply) {
             continue;
-        int  name_len = xcb_get_atom_name_name_length(reply);
-        char *name_ptr = xcb_get_atom_name_name(reply);
-        snprintf(name, name_len + 1, name_ptr);
-        
-        // Skip printing atoms that don't match conditions
+        }
+        if (reply->name_len < 2) {
+            free(reply);
+            continue;
+        }
+        memcpy(name, xcb_get_atom_name_name(reply), reply->name_len);
+        name[reply->name_len] = '\0';
         if (match_type == MATCH_PARTIAL && strstr(name, match) == NULL) {
+            free(reply);
             continue;
         }else if (match_type == MATCH_FULL && strcmp(name, match) != 0) {
+            free(reply);
             continue;
         }
 
@@ -71,6 +69,7 @@ static void print_atoms()
             }
             p++;
         }
+        free(reply);
     }
     xcb_disconnect(conn);
 }
@@ -99,9 +98,9 @@ static void print_version()
     printf("XAtoms (%i.%i.%i)\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
 }
 
-static void set_format(char *fmt)
+static void set_format(char *format, char *opt)
 {
-    char *c = fmt;
+    char *c = opt;
     char *p = format;
     while (*c != 0) {
         switch(*c) {
@@ -122,7 +121,7 @@ static void set_format(char *fmt)
     *p = '\0';
 }
 
-static void set_range(char* rng)
+static void set_range(int range[2], char* rng)
 {
     char* sep = strstr(rng, "-");
     if (sep) {
@@ -143,23 +142,28 @@ int main(int argc, char* argv[])
     };
     int opt;
     int i, option_index = 0;
+    char *match = NULL;
+    char format[256] = "%ld\t%s\n";
+    int range[2] = {0, MAX_ATOM};
+    MatchType match_type = MATCH_NONE;
+
     while ((opt = getopt_long(argc, argv, "f:hn:pr:v", 
                     longopts, &option_index)) != -1) {
         switch (opt) {
             case 'f':
-                set_format(optarg);
+                set_format(format, optarg);
                 break;
             case 'n':
                 if (match_type == MATCH_NONE) {
                     match_type = MATCH_FULL;
                 }
-                strncpy(match, optarg, BUF_SIZE);
+                match = optarg;
                 break;
             case 'p':
                 match_type = MATCH_PARTIAL;
                 break;
             case 'r':
-                set_range(optarg);
+                set_range(range, optarg);
                 break;
             case 'v':
                 print_version();
@@ -175,9 +179,9 @@ int main(int argc, char* argv[])
 
     }
     for (int i = optind; i < argc; ++i) {
-        printf("Unknown argument - %s\n", argv[i]);
+        print_help();
         return 1;
     }
-    print_atoms();
+    print_atoms(match, match_type, format, range);
     return 0;
 }
