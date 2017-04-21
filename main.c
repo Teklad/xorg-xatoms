@@ -143,7 +143,7 @@ int main(int argc, char* argv[])
     int opt;
     int i, option_index = 0;
     char *match = NULL;
-    char format[256] = "%ld\t%s\n";
+    char format[256] = "%d\t%s\n";
     int range[2] = {0, MAX_ATOM};
     MatchType match_type = MATCH_NONE;
 
