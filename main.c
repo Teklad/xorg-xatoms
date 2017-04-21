@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,7 +11,7 @@
 #define VERSION_PATCH 0
 
 #define BUF_SIZE  1024
-#define MAX_ATOM  1000
+#define BATCH_SIZE 100
 
 typedef enum  {MATCH_NONE = 0, MATCH_PARTIAL, MATCH_FULL} MatchType;
 
@@ -22,54 +23,73 @@ static void print_atoms(const char* match, MatchType match_type, char* format,
         fputs("Display connection error.\n", stderr);
         exit(1);
     }
-    xcb_get_atom_name_cookie_t cookies[MAX_ATOM];
+
+    xcb_generic_error_t *e;
+    xcb_get_atom_name_cookie_t cookies[BATCH_SIZE];
     xcb_get_atom_name_reply_t *reply = NULL;
     char name[BUF_SIZE] = {0};
+    int batch_offset = 0;
 
-    for (int i = range[0]; i < range[1]; ++i) {
-        cookies[i] = xcb_get_atom_name(conn, i);
-    }
+    while (batch_offset < range[1] - range[0]) {
+        for (int i = 0; i < BATCH_SIZE; ++i) {
+            if (batch_offset+i > range[1] - range[0]) {
+                break;
+            }
+            cookies[i] = xcb_get_atom_name(conn, 
+                    range[0] + i + batch_offset);
+        }
+        for (int i = 0; i < BATCH_SIZE; ++i) {
+            if (batch_offset+i > range[1] - range[0]) {
+                finished = 1;
+                break;
+            }
+            reply = xcb_get_atom_name_reply(conn, cookies[i], &e);
+            if (reply) {
+                memcpy(name, xcb_get_atom_name_name(reply), reply->name_len);
+                name[reply->name_len] = '\0';
+                if (match_type == MATCH_PARTIAL && 
+                strstr(name, match) == NULL) {
+                    free(reply);
+                    continue;
+                }else if (match_type == MATCH_FULL && 
+                strcmp(name, match) != 0) {
+                    free(reply);
+                    continue;
+                }
 
-    for (int i = range[0]; i < range[1]; ++i) {
-        reply = xcb_get_atom_name_reply(conn, cookies[i], NULL);
-        if (!reply) {
-            continue;
-        }
-        if (reply->name_len < 2) {
-            free(reply);
-            continue;
-        }
-        memcpy(name, xcb_get_atom_name_name(reply), reply->name_len);
-        name[reply->name_len] = '\0';
-        if (match_type == MATCH_PARTIAL && strstr(name, match) == NULL) {
-            free(reply);
-            continue;
-        }else if (match_type == MATCH_FULL && strcmp(name, match) != 0) {
-            free(reply);
-            continue;
-        }
-
-        // Safe print
-        char *p = format;
-        while(*p != 0) {
-            switch(*p) {
-                case '%':
-                    if (*(p+1) == 'd') {
-                        fprintf(stdout, "%i", i);
-                    }else if (*(p+1) == 's') {
-                        fputs(name, stdout);
-                    }else if (*(p+1) == '%') {
-                        fputs("%", stdout);
+                // Safe print
+                char *p = format;
+                while(*p != 0) {
+                    switch(*p) {
+                        case '%':
+                            if (*(p+1) == 'd') {
+                                fprintf(stdout, "%i",
+                                        range[0] + i + batch_offset);
+                            }else if (*(p+1) == 's') {
+                                fputs(name, stdout);
+                            }else if (*(p+1) == '%') {
+                                fputs("%", stdout);
+                            }
+                            p++;
+                            break;
+                        default:
+                            fputc(*p, stdout);
+                            break;
                     }
                     p++;
-                    break;
-                default:
-                    fputc(*p, stdout);
-                    break;
+                }
+                free(reply);
             }
-            p++;
+            if (e) {
+                break;
+            }
+
         }
-        free(reply);
+        if (e) {
+            free(e);
+            break;
+        }
+        batch_offset += BATCH_SIZE;
     }
     xcb_disconnect(conn);
 }
@@ -142,9 +162,11 @@ int main(int argc, char* argv[])
     };
     int opt;
     int i, option_index = 0;
+
+    // All of our options are here
     char *match = NULL;
     char format[256] = "%d\t%s\n";
-    int range[2] = {0, MAX_ATOM};
+    int range[2] = {1, INT_MAX};
     MatchType match_type = MATCH_NONE;
 
     while ((opt = getopt_long(argc, argv, "f:hn:pr:v", 
@@ -178,7 +200,7 @@ int main(int argc, char* argv[])
         }
 
     }
-    for (int i = optind; i < argc; ++i) {
+    if (optind < argc) {
         print_help();
         return 1;
     }
