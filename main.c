@@ -50,6 +50,7 @@ static void print_atoms(const char *match, MatchType match_type, char *format,
                 if (reply->name_len > BUF_SIZE - 1) {
                     fputs("Atom name buffer overflow\n", stderr);
                     free(reply);
+                    xcb_disconnect(conn);
                     exit(1);
                 }
                 // Fill the name buffer
