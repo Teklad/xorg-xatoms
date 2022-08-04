@@ -4,6 +4,7 @@
 
 #include <getopt.h>
 #include <xcb/xcb.h>
+#include <xcb/xproto.h>
 
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 1
@@ -45,6 +46,7 @@ static void print_atoms(const char *match, MatchType match_type, char *format,
         // Read all the replies
         for (int i = 0; i < BATCH_SIZE; ++i) {
             if (batch_offset + i > actual_range) break;
+            e = NULL;
             reply = xcb_get_atom_name_reply(conn, cookies[i], &e);
             if (reply) {
                 if (reply->name_len > BUF_SIZE - 1) {
@@ -92,9 +94,9 @@ static void print_atoms(const char *match, MatchType match_type, char *format,
                 free(reply);
             }
 
-            // If we encountered an error, go ahead and quit
-            // we're probably at the end of available atoms.
-            if (e) {
+            // If we encountered an error and it's not a BadAtom error,
+            // go ahead and quit we're probably at the end of available atoms.
+            if (e && e->error_code != XCB_ATOM) {
                 break;
             }
 
@@ -158,10 +160,16 @@ static void set_format(char *format, char *opt)
 static void set_range(unsigned int range[2], char* rng)
 {
     char* sep = strstr(rng, "-");
-    if (sep) {
+    if (NULL == sep) {
+        fputs("Invalid range format\n", stderr);
+        exit(1);
+    }
+    if (*(sep+1) != '\0') {
         range[1] = atoi(sep+1);
     }
-    range[0] = atoi(rng);
+    if (rng != sep) {
+        range[0] = atoi(rng);
+    }
     if (range[0] > range[1]) {
         range[1] = range[0];
     }
